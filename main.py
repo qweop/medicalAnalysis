@@ -69,7 +69,7 @@ def histology_result_counts(df, df_male, df_female, site):
         'Antrum': ['A. Ohne Befund', 'A. Chronische Gastritis', 'A. Typ A Gastritis', 'A. Typ B Gastritis',
                    'A. Typ C Gastritis', 'A. Intestinale Metaplasie'],
         'Corpus': ['K. Ohne Befund', 'K. Chronische Gastritis', 'K. Typ A Gastritis', 'K. Typ B Gastritis',
-                   'K. Typ C Gastritis', 'K. Intestinale Metaplasie']
+                   'K. Typ C Gastritis', 'K. Intestinale Metaplasie', 'K. Drüsenkörperzysten']
     }
     for condition in biopsy_sites[site]:
         site_results[condition] = [
@@ -96,7 +96,7 @@ def calculate_contingency_tables_by_gender(df_all, df_male, df_female, column1, 
 
 def calculate_chi2_correlation(df1, df2):
     contingency_table = pd.crosstab(df1, df2)
-    chi2, p_value, _, _ = chi2_contingency(contingency_table)
+    chi2, p_value, _, expected = chi2_contingency(contingency_table)
     return p_value
 
 
@@ -167,10 +167,14 @@ Indications for Gastroscopy
 indications = {
     "Dyspepsie": [df_all['I - Dyspepsie'].sum(), df_male['I - Dyspepsie'].sum(), df_female['I - Dyspepsie'].sum()],
     "Reflux": [df_all['I - Reflux'].sum(), df_male['I - Reflux'].sum(), df_female['I - Reflux'].sum()],
+    "Colonsymptome": [df_all['I - Colonsymptome'].sum(), df_male['I - Colonsymptome'].sum(),
+                      df_female['I - Colonsymptome'].sum()],
     "Allgemeinsymptome": [df_all['I - Allgemeinsymptome'].sum(), df_male['I - Allgemeinsymptome'].sum(),
                           df_female['I - Allgemeinsymptome'].sum()],
     "Laborbefunde": [df_all['I - Laborbefunde'].sum(), df_male['I - Laborbefunde'].sum(),
                      df_female['I - Laborbefunde'].sum()],
+    "Tumorgruppe": [df_all['I - Tumorgruppe'].sum(), df_male['I - Tumorgruppe'].sum(),
+                    df_female['I - Tumorgruppe'].sum()],
     "Blutung": [df_all['I - Blutung'].sum(), df_male['I - Blutung'].sum(), df_female['I - Blutung'].sum()],
     "Wunsch des Patienten": [df_all['I - Wunsch des Patienten'].sum(), df_male['I - Wunsch des Patienten'].sum(),
                              df_female['I - Wunsch des Patienten'].sum()],
@@ -341,15 +345,18 @@ with pd.ExcelWriter("output_data.xlsx", engine="openpyxl") as writer:
     for gastritis_type, p_values_A, p_values_K, p_values_D in gastritis_types:
         for prefix, p_values in [("A.", p_values_A), ("K.", p_values_K), ("D.", p_values_D)]:
             column_name = f"{prefix} {gastritis_type}"
-            pos_histology_all = df_all[column_name].sum()
-            pos_histology_male = df_male[column_name].sum()
-            pos_histology_female = df_female[column_name].sum()
+            gastritis_type_and_dyspepsie_all = (df_all[[column_name, 'I - Dyspepsie']] == 1).all(axis=1).sum()
+            gastritis_type_and_dyspepsie_male = (df_male[[column_name, 'I - Dyspepsie']] == 1).all(axis=1).sum()
+            gastritis_type_and_dyspepsie_female = (df_female[[column_name, 'I - Dyspepsie']] == 1).all(axis=1).sum()
             correlation_data.append(
-                [f"Dyspepsie & {column_name}", pos_histology_all, (pos_histology_all / len(df_all)) * 100,
+                [f"Dyspepsie & {column_name}", gastritis_type_and_dyspepsie_all,
+                 (gastritis_type_and_dyspepsie_all / len(df_all)) * 100,
                  p_values['Overall'],
-                 pos_histology_male, (pos_histology_male / len(df_male)) * 100 if len(df_male) > 0 else 0,
+                 gastritis_type_and_dyspepsie_male,
+                 (gastritis_type_and_dyspepsie_male / len(df_male)) * 100 if len(df_male) > 0 else 0,
                  p_values['Male'],
-                 pos_histology_female, (pos_histology_female / len(df_female)) * 100 if len(df_female) > 0 else 0,
+                 gastritis_type_and_dyspepsie_female,
+                 (gastritis_type_and_dyspepsie_female / len(df_female)) * 100 if len(df_female) > 0 else 0,
                  p_values['Female']])
 
     df_correlation = pd.DataFrame(correlation_data,
